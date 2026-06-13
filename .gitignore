@@ -16,6 +16,9 @@ appsettings.Development.json
 .idea/
 .vscode/settings.json
 
+## Gravações de stream (não commitar)
+recordings/
+
 ## OS
 .DS_Store
 Thumbs.db

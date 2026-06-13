@@ -20,6 +20,7 @@ internal sealed class RaceWorker : IDisposable
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger _logger;
     private readonly Action _notify;
+    private readonly string? _replayFile;
     private readonly CancellationTokenSource _cts = new();
     private readonly object _lock = new();
 
@@ -36,12 +37,13 @@ internal sealed class RaceWorker : IDisposable
 
     private DateTimeOffset _lastNotify = DateTimeOffset.MinValue;
 
-    public RaceWorker(int raceId, IServiceScopeFactory scopeFactory, ILogger logger, Action notify)
+    public RaceWorker(int raceId, IServiceScopeFactory scopeFactory, ILogger logger, Action notify, string? replayFile = null)
     {
         _raceId = raceId;
         _scopeFactory = scopeFactory;
         _logger = logger;
         _notify = notify;
+        _replayFile = replayFile;
     }
 
     public void Start() => _ = Task.Run(RunAsync);
@@ -122,6 +124,9 @@ internal sealed class RaceWorker : IDisposable
 
     private async Task SeedAsync(CancellationToken ct)
     {
+        // Replay: o arquivo já contém o estado inicial; não precisamos da API REST.
+        if (_replayFile != null) return;
+
         using var scope = _scopeFactory.CreateScope();
         var client = scope.ServiceProvider.GetRequiredService<IRaceMonitorClient>();
 
@@ -244,6 +249,9 @@ internal sealed class RaceWorker : IDisposable
 
     private async Task<bool> TryStreamAsync(CancellationToken ct)
     {
+        if (_replayFile != null)
+            return await ReplayFromFileAsync(ct);
+
         string websocketUrl;
         try
         {
@@ -274,6 +282,10 @@ internal sealed class RaceWorker : IDisposable
         _logger.LogInformation("Stream conectado para a corrida {RaceId}", _raceId);
         lock (_lock) _isStreaming = true;
 
+        using var recorder = StreamRecorder.Create(_raceId);
+        if (recorder != null)
+            _logger.LogInformation("Gravando stream em {File}", recorder.FilePath);
+
         try
         {
             var buffer = new byte[8192];
@@ -293,8 +305,12 @@ internal sealed class RaceWorker : IDisposable
                 messageBuffer.Clear();
 
                 foreach (var line in lines.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+                {
+                    recorder?.Record(line);
                     HandleMessage(RMonitorParser.Parse(line));
+                }
 
+                recorder?.Flush();
                 Notify();
             }
             return true;
@@ -304,6 +320,56 @@ internal sealed class RaceWorker : IDisposable
             _logger.LogWarning(ex, "Stream interrompido para a corrida {RaceId}", _raceId);
             return false;
         }
+        finally
+        {
+            lock (_lock) _isStreaming = false;
+        }
+    }
+
+    // --- Replay a partir de arquivo gravado ---
+
+    private async Task<bool> ReplayFromFileAsync(CancellationToken ct)
+    {
+        if (!File.Exists(_replayFile))
+        {
+            _logger.LogWarning("Arquivo de replay não encontrado: {File}", _replayFile);
+            return false;
+        }
+
+        _logger.LogInformation("Iniciando replay da corrida {RaceId} a partir de {File}", _raceId, _replayFile);
+        lock (_lock) _isStreaming = true;
+
+        try
+        {
+            var rawLines = await File.ReadAllLinesAsync(_replayFile!, ct);
+            long? prevTs = null;
+
+            foreach (var raw in rawLines)
+            {
+                if (ct.IsCancellationRequested) break;
+                var sep = raw.IndexOf('|');
+                if (sep < 0) continue;
+
+                if (long.TryParse(raw.AsSpan(0, sep), out var ts))
+                {
+                    if (prevTs.HasValue)
+                    {
+                        var delay = (int)Math.Clamp(ts - prevTs.Value, 0, 2000);
+                        if (delay > 10) await Task.Delay(delay, ct);
+                    }
+                    prevTs = ts;
+                }
+
+                HandleMessage(RMonitorParser.Parse(raw[(sep + 1)..].Trim()));
+                Notify();
+            }
+
+            _logger.LogInformation("Replay concluído para a corrida {RaceId}; mantendo último estado", _raceId);
+            // Aguarda indefinidamente mantendo o estado capturado, sem chamar API
+            await Task.Delay(Timeout.Infinite, ct);
+            return true;
+        }
+        catch (OperationCanceledException) { return false; }
         finally
         {
             lock (_lock) _isStreaming = false;
