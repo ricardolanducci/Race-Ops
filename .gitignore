@@ -1,0 +1,24 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.db
+*.db-shm
+*.db-wal
+raceops.db
+
+## Configurações locais (não commitar tokens)
+appsettings.Development.json
+
+## IDE
+.idea/
+.vscode/settings.json
+
+## Gravações de stream (não commitar)
+recordings/
+
+## OS
+.DS_Store
+Thumbs.db
