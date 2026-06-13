@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Race Ops</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <!-- Header global -->
+  <header id="app-header">
+    <div class="brand"><span class="brand-mark">◉</span> RACE OPS</div>
+    <nav class="top-nav">
+      <span class="top-nav-item active">Dashboard</span>
+      <span class="top-nav-item disabled">Análises</span>
+      <span class="top-nav-item disabled">Eventos</span>
+      <span class="top-nav-item disabled">Equipe</span>
+    </nav>
+    <div class="header-right">
+      <span id="stream-badge" class="stream-badge" title="Fonte dos dados">—</span>
+      <select id="race-selector" class="race-selector">
+        <option value="">Carregando corridas...</option>
+      </select>
+    </div>
+  </header>
+
+  <div class="app-body">
+    <!-- Sidebar -->
+    <aside id="sidebar">
+      <div class="side-section">
+        <div class="side-title">Painéis</div>
+        <button class="side-item active" data-view="overview">Visão geral</button>
+        <button class="side-item" data-view="strategy">Estratégia</button>
+        <button class="side-item" data-view="classification">Classificação</button>
+      </div>
+      <div class="side-section">
+        <button class="side-item" id="open-config">⚙ Configurações evento</button>
+      </div>
+    </aside>
+
+    <!-- Conteúdo -->
+    <main id="main">
+      <div id="empty-state" class="empty-state">
+        <h2>Selecione uma corrida ao vivo</h2>
+        <p>Escolha uma corrida no seletor acima e configure os karts monitorados em <strong>Configurações evento</strong>.</p>
+      </div>
+
+      <section id="view-overview" class="view" hidden>
+        <div class="overview-grid">
+          <div id="chrono-modules" class="chrono-modules"></div>
+          <div class="overview-right">
+            <div class="module" id="alerts-module">
+              <div class="module-header"><span class="module-icon">🔔</span> Alertas</div>
+              <div class="module-body">
+                <table class="data-table alerts-table">
+                  <thead><tr><th>Alerta</th><th class="num">Hora</th></tr></thead>
+                  <tbody id="alerts-body"><tr class="empty-row"><td colspan="2">Sem alertas</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="module grow" id="compact-classification">
+              <div class="module-header"><span class="module-icon">☰</span> Classificação</div>
+              <div class="module-body scroll">
+                <table class="data-table" id="compact-table">
+                  <thead>
+                    <tr>
+                      <th>Real</th><th>Pista</th><th>Kart</th><th>Equipe</th>
+                      <th class="num">TUV</th><th class="num">R-UV</th><th class="num">Volta</th><th class="num">T.Pista</th>
+                    </tr>
+                  </thead>
+                  <tbody id="compact-body"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-classification" class="view" hidden>
+        <div class="module grow">
+          <div class="module-header"><span class="module-icon">☰</span> Classificação</div>
+          <div class="module-body scroll">
+            <table class="data-table" id="classification-table">
+              <thead id="classification-head"></thead>
+              <tbody id="classification-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-strategy" class="view" hidden>
+        <div class="module grow">
+          <div class="strategy-tabs" id="strategy-tabs"></div>
+          <div class="strategy-summary" id="strategy-summary"></div>
+          <div class="module-body scroll">
+            <table class="data-table" id="stints-table">
+              <thead>
+                <tr>
+                  <th>Stint</th><th>Piloto</th><th class="num">Entrada</th><th class="num">Volta</th>
+                  <th class="num">Saída</th><th class="num">Volta</th><th class="num">T.Parada</th>
+                  <th>Pesada</th><th class="num">T.Pista</th><th class="num">T.Estim.</th>
+                </tr>
+              </thead>
+              <tbody id="stints-body"></tbody>
+            </table>
+            <button class="add-stint-btn" id="add-stint">+ ADICIONAR</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Barra Dados de corrida -->
+  <footer id="race-data-bar" hidden>
+    <div class="rdb-title"><span class="module-icon">🏁</span> Dados de corrida</div>
+    <div class="rdb-items">
+      <div class="rdb-item"><span class="rdb-label">Hora atual</span><span class="rdb-value" id="rdb-clock">--:--:--</span></div>
+      <div class="rdb-item"><span class="rdb-label">Tempo decorrido</span><span class="rdb-value" id="rdb-elapsed">--:--:--</span></div>
+      <div class="rdb-item"><span class="rdb-label">Tempo restante</span><span class="rdb-value" id="rdb-togo">--:--:--</span></div>
+      <div class="rdb-sep"></div>
+      <div class="rdb-item"><span class="rdb-label">Tempo médio pista</span><span class="rdb-value" id="rdb-avg">--</span></div>
+      <div class="rdb-item"><span class="rdb-label">Tempo médio TOP10</span><span class="rdb-value" id="rdb-avg10">--</span></div>
+      <div class="rdb-sep"></div>
+      <div class="rdb-item"><span class="rdb-label">Bandeira</span><span class="rdb-value flag" id="rdb-flag">—</span></div>
+    </div>
+  </footer>
+
+  <!-- Modal de configurações do evento -->
+  <dialog id="config-modal">
+    <form method="dialog" id="config-form">
+      <h2>Configurações do evento</h2>
+
+      <label class="field">
+        <span>Duração da corrida (minutos)</span>
+        <input type="number" id="cfg-duration" min="0" />
+      </label>
+
+      <label class="field">
+        <span>Karts monitorados (separados por vírgula)</span>
+        <input type="text" id="cfg-karts" placeholder="014, 015, 016" />
+      </label>
+
+      <div class="field">
+        <span>Regras de parada</span>
+        <div id="cfg-rules"></div>
+        <button type="button" class="ghost-btn" id="cfg-add-rule">+ Regra</button>
+      </div>
+
+      <div class="field-row">
+        <label class="field">
+          <span>Alerta de pista (min)</span>
+          <input type="number" id="cfg-alert" min="0" />
+        </label>
+        <label class="field">
+          <span>Atenção — volta (s)</span>
+          <input type="number" id="cfg-attention" min="0" />
+        </label>
+        <label class="field">
+          <span>Box — volta (s)</span>
+          <input type="number" id="cfg-box" min="0" />
+        </label>
+      </div>
+
+      <label class="field check">
+        <input type="checkbox" id="cfg-heavy" />
+        <span>Evento possui regra de stint pesada</span>
+        <input type="number" id="cfg-heavy-count" min="0" style="width:70px" title="Quantidade obrigatória" />
+      </label>
+
+      <div class="modal-actions">
+        <button type="button" class="ghost-btn" id="cfg-cancel">CANCELAR</button>
+        <button type="submit" class="primary-btn">SALVAR</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+  <script src="/js/format.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/hub.js"></script>
+  <script src="/js/views/overview.js"></script>
+  <script src="/js/views/classification.js"></script>
+  <script src="/js/views/strategy.js"></script>
+  <script src="/js/views/config.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
